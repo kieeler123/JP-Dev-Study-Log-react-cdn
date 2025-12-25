@@ -93,7 +93,7 @@
           class="rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-sm"
         >
           <h2 class="text-sm font-semibold text-slate-700">一覧</h2>
-          <div id="list"></div>
+          <div id="list" class="mt-4 max-h-[70vh] overflow-y-auto pr-1"></div>
         </section>
       </div>
 
@@ -107,7 +107,7 @@
     <script type="text/babel">
       const { useEffect, useMemo, useRef, useState } = React;
 
-      const STORAGE_KEY = "jp_dev_study_log_entries_v2";
+      const STORAGE_KEY = "jp_dev_study_log_entries_v3";
 
       function loadEntries() {
         try {
@@ -141,7 +141,7 @@
         }
       }
 
-      function Form({ onSubmit, editing, onCancel }) {
+      function Form({ editing, onSubmit, onCancel }) {
         const [category, setCategory] = useState("日本語");
         const [title, setTitle] = useState("");
         const [content, setContent] = useState("");
@@ -165,7 +165,14 @@
           const t = title.trim();
           const c = content.trim();
           if (!t || !c) return;
+
           onSubmit({ category, title: t, content: c });
+
+          if (!editing) {
+            setTitle("");
+            setContent("");
+            setTimeout(() => titleRef.current?.focus(), 0);
+          }
         }
 
         return (
@@ -217,6 +224,7 @@
               >
                 {editing ? "更新する" : "保存する"}
               </button>
+
               {editing && (
                 <button
                   type="button"
@@ -231,7 +239,74 @@
         );
       }
 
-      function List({
+      function Recent5({ entries, onEdit, onDelete }) {
+        return (
+          <div className="mt-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-semibold text-slate-600">
+                最近の5件
+              </h3>
+              <span className="text-[11px] text-slate-500">
+                {entries.length} 件
+              </span>
+            </div>
+
+            {entries.length === 0 ? (
+              <p className="mt-3 text-sm text-slate-500">
+                まだログがありません。
+              </p>
+            ) : (
+              <ul className="mt-3 space-y-3">
+                {entries.map((it) => (
+                  <li
+                    key={it.id}
+                    className="rounded-3xl border border-slate-200 bg-white p-4"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-700">
+                            {it.category}
+                          </span>
+                          <span className="text-[11px] text-slate-500">
+                            {fmt(it.updatedAt || it.createdAt)}
+                          </span>
+                        </div>
+                        <h4 className="mt-2 truncate text-sm font-semibold">
+                          {it.title}
+                        </h4>
+                      </div>
+
+                      <div className="flex shrink-0 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => onEdit(it)}
+                          className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                        >
+                          編集
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDelete(it.id)}
+                          className="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50"
+                        >
+                          削除
+                        </button>
+                      </div>
+                    </div>
+
+                    <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
+                      {it.content}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      }
+
+      function ListFull({
         entries,
         onEdit,
         onDelete,
@@ -243,7 +318,7 @@
         setSort,
       }) {
         return (
-          <div className="mt-4">
+          <div>
             <div className="grid gap-3 sm:grid-cols-3">
               <label className="block">
                 <div className="text-xs font-semibold text-slate-600">
@@ -342,24 +417,127 @@
         );
       }
 
-      function StudyApp() {
-        const [entries, setEntries] = useState(() => loadEntries());
-        const [editing, setEditing] = useState(null);
+      // ---- store (shared state) ----
+      function createStore() {
+        let state = {
+          entries: loadEntries(),
+          editing: null,
+          filter: "ALL",
+          q: "",
+          sort: "new",
+        };
+        const listeners = new Set();
 
-        const [filter, setFilter] = useState("ALL");
-        const [q, setQ] = useState("");
-        const [sort, setSort] = useState("new");
+        function emit() {
+          for (const fn of listeners) fn(state);
+        }
 
-        useEffect(() => {
-          saveEntries(entries);
-        }, [entries]);
+        function setState(patch) {
+          state = { ...state, ...patch };
+          saveEntries(state.entries);
+          emit();
+        }
+
+        return {
+          subscribe(fn) {
+            listeners.add(fn);
+            fn(state);
+            return () => listeners.delete(fn);
+          },
+          addOrUpdate(payload) {
+            const now = Date.now();
+            if (state.editing) {
+              const id = state.editing.id;
+              const entries = state.entries.map((x) =>
+                x.id === id ? { ...x, ...payload, updatedAt: now } : x
+              );
+              setState({ entries, editing: null });
+              return;
+            }
+            const entries = [
+              ...state.entries,
+              { id: uid(), ...payload, createdAt: now, updatedAt: now },
+            ];
+            setState({ entries });
+          },
+          edit(item) {
+            setState({ editing: item });
+          },
+          cancelEdit() {
+            setState({ editing: null });
+          },
+          remove(id) {
+            const entries = state.entries.filter((x) => x.id !== id);
+            const editing = state.editing?.id === id ? null : state.editing;
+            setState({ entries, editing });
+          },
+          setFilter(filter) {
+            setState({ filter });
+          },
+          setQuery(q) {
+            setState({ q });
+          },
+          setSort(sort) {
+            setState({ sort });
+          },
+        };
+      }
+
+      const store = createStore();
+
+      function useStore() {
+        const [s, setS] = useState(() => ({
+          entries: loadEntries(),
+          editing: null,
+          filter: "ALL",
+          q: "",
+          sort: "new",
+        }));
+        useEffect(() => store.subscribe(setS), []);
+        return s;
+      }
+
+      function LeftPane() {
+        const s = useStore();
+
+        const recent5 = useMemo(() => {
+          const list = [...s.entries];
+          list.sort(
+            (a, b) =>
+              (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt)
+          );
+          return list.slice(0, 5);
+        }, [s.entries]);
+
+        return (
+          <div>
+            <Form
+              editing={s.editing}
+              onSubmit={(payload) => store.addOrUpdate(payload)}
+              onCancel={() => store.cancelEdit()}
+            />
+
+            <Recent5
+              entries={recent5}
+              onEdit={(item) => store.edit(item)}
+              onDelete={(id) => {
+                if (!confirm("削除しますか？")) return;
+                store.remove(id);
+              }}
+            />
+          </div>
+        );
+      }
+
+      function RightPane() {
+        const s = useStore();
 
         const shown = useMemo(() => {
-          const needle = q.trim().toLowerCase();
-          let list = [...entries];
+          const needle = s.q.trim().toLowerCase();
+          let list = [...s.entries];
 
-          if (filter !== "ALL")
-            list = list.filter((x) => x.category === filter);
+          if (s.filter !== "ALL")
+            list = list.filter((x) => x.category === s.filter);
 
           if (needle) {
             list = list.filter(
@@ -372,68 +550,35 @@
           list.sort((a, b) => {
             const da = a.updatedAt || a.createdAt;
             const db = b.updatedAt || b.createdAt;
-            return sort === "new" ? db - da : da - db;
+            return s.sort === "new" ? db - da : da - db;
           });
 
           return list;
-        }, [entries, filter, q, sort]);
-
-        function handleSubmit(payload) {
-          const now = Date.now();
-
-          if (editing) {
-            setEntries((prev) =>
-              prev.map((x) =>
-                x.id === editing.id ? { ...x, ...payload, updatedAt: now } : x
-              )
-            );
-            setEditing(null);
-            return;
-          }
-
-          setEntries((prev) => [
-            ...prev,
-            { id: uid(), ...payload, createdAt: now, updatedAt: now },
-          ]);
-        }
-
-        function handleEdit(item) {
-          setEditing(item);
-        }
-
-        function handleDelete(id) {
-          if (!confirm("削除しますか？")) return;
-          setEntries((prev) => prev.filter((x) => x.id !== id));
-          if (editing?.id === id) setEditing(null);
-        }
-
-        function handleCancel() {
-          setEditing(null);
-        }
+        }, [s.entries, s.filter, s.q, s.sort]);
 
         return (
-          <div>
-            <Form
-              onSubmit={handleSubmit}
-              editing={editing}
-              onCancel={handleCancel}
-            />
-            <List
-              entries={shown}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              filter={filter}
-              setFilter={setFilter}
-              q={q}
-              setQ={setQ}
-              sort={sort}
-              setSort={setSort}
-            />
-          </div>
+          <ListFull
+            entries={shown}
+            onEdit={(item) => store.edit(item)}
+            onDelete={(id) => {
+              if (!confirm("削除しますか？")) return;
+              store.remove(id);
+            }}
+            filter={s.filter}
+            setFilter={(v) => store.setFilter(v)}
+            q={s.q}
+            setQ={(v) => store.setQuery(v)}
+            sort={s.sort}
+            setSort={(v) => store.setSort(v)}
+          />
         );
       }
 
-      ReactDOM.createRoot(document.getElementById("root")).render(<StudyApp />);
+      // render into 2 places
+      ReactDOM.createRoot(document.getElementById("root")).render(<LeftPane />);
+      ReactDOM.createRoot(document.getElementById("list")).render(
+        <RightPane />
+      );
     </script>
   </body>
 </html>
