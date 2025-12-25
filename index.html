@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>JP Dev Study Log (No Build)</title>
+
+    <!-- Tailwind Play CDN (설치 없이 사용) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- (선택) Tailwind config를 브라우저에서 간단히 커스터마이즈 -->
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {},
+        },
+      };
+    </script>
+  </head>
+
+  <body class="min-h-screen bg-slate-950 text-slate-100">
+    <div id="root"></div>
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
