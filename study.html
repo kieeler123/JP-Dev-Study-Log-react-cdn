@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>学習ログ | JP & Dev Study Log</title>
+    <title>Study Log | JP & Dev Study Log</title>
     <script src="https://cdn.tailwindcss.com"></script>
 
     <!-- React 18 UMD -->
@@ -15,24 +15,104 @@
       crossorigin
       src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"
     ></script>
-
     <!-- Babel (no-build JSX) -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   </head>
 
-  <body class="bg-white text-slate-900">
-    <div id="root"></div>
+  <body class="min-h-screen bg-slate-50 text-slate-900">
+    <div
+      aria-hidden="true"
+      class="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(15,23,42,0.06)_1px,transparent_1px)] [background-size:18px_18px]"
+    ></div>
+
+    <header
+      class="sticky top-0 z-20 border-b border-slate-200/70 bg-white/85 backdrop-blur"
+    >
+      <div class="mx-auto max-w-5xl px-5 py-3">
+        <div class="flex items-center justify-between gap-3">
+          <a href="./index.html" class="flex items-center gap-3">
+            <span
+              class="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white shadow-sm"
+            >
+              <span class="text-sm font-semibold tracking-tight">JP</span>
+            </span>
+            <div class="leading-tight">
+              <div class="text-sm font-semibold tracking-tight">
+                JP &amp; Dev Study Log
+              </div>
+              <div class="text-xs text-slate-500">Study Log</div>
+            </div>
+          </a>
+
+          <nav class="flex items-center gap-2 text-sm">
+            <a
+              href="./index.html"
+              class="rounded-full border border-slate-200 bg-white px-4 py-1.5 font-semibold text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+            >
+              Home
+            </a>
+            <a
+              href="./study.html"
+              class="rounded-full border border-slate-900 bg-slate-900 px-4 py-1.5 font-semibold text-white"
+            >
+              Study Log
+            </a>
+          </nav>
+        </div>
+      </div>
+    </header>
+
+    <main class="relative mx-auto max-w-5xl px-5 py-10">
+      <section
+        class="rounded-3xl border border-slate-200/70 bg-white/80 p-7 shadow-sm"
+      >
+        <h1 class="text-xl font-semibold tracking-tight sm:text-2xl">
+          学習ログ
+        </h1>
+        <p class="mt-2 text-sm leading-7 text-slate-600">
+          入力内容は
+          <span class="rounded bg-slate-100 px-1 py-0.5 text-xs"
+            >localStorage</span
+          >
+          に保存されます（サーバー不要）。
+        </p>
+      </section>
+
+      <div class="mt-6 grid gap-4 lg:grid-cols-2">
+        <!-- Form -->
+        <section
+          class="rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-sm"
+        >
+          <h2 class="text-sm font-semibold text-slate-700">新規作成 / 編集</h2>
+
+          <div id="root"></div>
+        </section>
+
+        <!-- List -->
+        <section
+          class="rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-sm"
+        >
+          <h2 class="text-sm font-semibold text-slate-700">一覧</h2>
+          <div id="list"></div>
+        </section>
+      </div>
+
+      <footer
+        class="mt-10 border-t border-slate-200/70 py-6 text-center text-xs text-slate-500"
+      >
+        © 2025 JP &amp; Dev Study Log
+      </footer>
+    </main>
 
     <script type="text/babel">
       const { useEffect, useMemo, useRef, useState } = React;
 
-      const STORAGE_KEY = "jp-dev-study-log__entries_v1";
+      const STORAGE_KEY = "jp_dev_study_log_entries_v2";
 
       function loadEntries() {
         try {
           const raw = localStorage.getItem(STORAGE_KEY);
-          if (!raw) return [];
-          const parsed = JSON.parse(raw);
+          const parsed = raw ? JSON.parse(raw) : [];
           return Array.isArray(parsed) ? parsed : [];
         } catch {
           return [];
@@ -44,299 +124,316 @@
       }
 
       function uid() {
-        return Math.random().toString(36).slice(2) + Date.now().toString(36);
+        return (
+          crypto?.randomUUID?.() ??
+          String(Date.now()) + Math.random().toString(16).slice(2)
+        );
       }
 
-      function App() {
-        const [entries, setEntries] = useState(() => loadEntries());
+      function fmt(ts) {
+        try {
+          return new Intl.DateTimeFormat("ja-JP", {
+            dateStyle: "medium",
+            timeStyle: "short",
+          }).format(new Date(ts));
+        } catch {
+          return "";
+        }
+      }
+
+      function Form({ onSubmit, editing, onCancel }) {
         const [category, setCategory] = useState("日本語");
         const [title, setTitle] = useState("");
         const [content, setContent] = useState("");
-
-        const [filter, setFilter] = useState("ALL"); // ALL | JP | DEV
-        const [q, setQ] = useState("");
-
-        const [editingId, setEditingId] = useState(null);
-
         const titleRef = useRef(null);
+
+        useEffect(() => {
+          if (editing) {
+            setCategory(editing.category);
+            setTitle(editing.title);
+            setContent(editing.content);
+          } else {
+            setCategory("日本語");
+            setTitle("");
+            setContent("");
+          }
+          setTimeout(() => titleRef.current?.focus(), 0);
+        }, [editing]);
+
+        function handleSubmit(e) {
+          e.preventDefault();
+          const t = title.trim();
+          const c = content.trim();
+          if (!t || !c) return;
+          onSubmit({ category, title: t, content: c });
+        }
+
+        return (
+          <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <div className="text-xs font-semibold text-slate-600">
+                  カテゴリ
+                </div>
+                <select
+                  className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-300"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                >
+                  <option value="日本語">日本語</option>
+                  <option value="コーディング">コーディング</option>
+                  <option value="生活">生活</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <div className="text-xs font-semibold text-slate-600">
+                  タイトル
+                </div>
+                <input
+                  ref={titleRef}
+                  className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-300"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="例）〜わけではない"
+                />
+              </label>
+            </div>
+
+            <label className="block">
+              <div className="text-xs font-semibold text-slate-600">内容</div>
+              <textarea
+                className="mt-1 min-h-[140px] w-full resize-y rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm leading-7 outline-none focus:border-slate-300"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder="気づき / 失敗 / 解決 / 例文 など"
+              />
+            </label>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="submit"
+                className="rounded-full border border-slate-900 bg-slate-900 px-5 py-2 text-sm font-semibold text-white hover:bg-slate-950"
+              >
+                {editing ? "更新する" : "保存する"}
+              </button>
+              {editing && (
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  className="rounded-full border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                >
+                  キャンセル
+                </button>
+              )}
+            </div>
+          </form>
+        );
+      }
+
+      function List({
+        entries,
+        onEdit,
+        onDelete,
+        filter,
+        setFilter,
+        q,
+        setQ,
+        sort,
+        setSort,
+      }) {
+        return (
+          <div className="mt-4">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <label className="block">
+                <div className="text-xs font-semibold text-slate-600">
+                  フィルター
+                </div>
+                <select
+                  className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-300"
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                >
+                  <option value="ALL">すべて</option>
+                  <option value="日本語">日本語</option>
+                  <option value="コーディング">コーディング</option>
+                  <option value="生活">生活</option>
+                </select>
+              </label>
+
+              <label className="block sm:col-span-2">
+                <div className="text-xs font-semibold text-slate-600">検索</div>
+                <input
+                  className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-300"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="タイトル / 内容"
+                />
+              </label>
+            </div>
+
+            <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+              <div>{entries.length} 件</div>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500">並び</span>
+                <select
+                  className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
+                >
+                  <option value="new">新しい順</option>
+                  <option value="old">古い順</option>
+                </select>
+              </div>
+            </div>
+
+            {entries.length === 0 ? (
+              <p className="mt-4 text-sm text-slate-500">
+                まだログがありません。
+              </p>
+            ) : (
+              <ul className="mt-4 space-y-3">
+                {entries.map((it) => (
+                  <li
+                    key={it.id}
+                    className="rounded-3xl border border-slate-200 bg-white p-4"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-700">
+                            {it.category}
+                          </span>
+                          <span className="text-[11px] text-slate-500">
+                            {fmt(it.updatedAt || it.createdAt)}
+                          </span>
+                        </div>
+                        <h3 className="mt-2 truncate text-sm font-semibold">
+                          {it.title}
+                        </h3>
+                      </div>
+
+                      <div className="flex shrink-0 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => onEdit(it)}
+                          className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                        >
+                          編集
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDelete(it.id)}
+                          className="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50"
+                        >
+                          削除
+                        </button>
+                      </div>
+                    </div>
+
+                    <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
+                      {it.content}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      }
+
+      function StudyApp() {
+        const [entries, setEntries] = useState(() => loadEntries());
+        const [editing, setEditing] = useState(null);
+
+        const [filter, setFilter] = useState("ALL");
+        const [q, setQ] = useState("");
+        const [sort, setSort] = useState("new");
 
         useEffect(() => {
           saveEntries(entries);
         }, [entries]);
 
-        const filtered = useMemo(() => {
-          const lower = q.trim().toLowerCase();
+        const shown = useMemo(() => {
+          const needle = q.trim().toLowerCase();
+          let list = [...entries];
 
-          return entries
-            .filter((e) => {
-              if (filter === "JP") return e.category === "日本語";
-              if (filter === "DEV") return e.category === "コーディング";
-              return true;
-            })
-            .filter((e) => {
-              if (!lower) return true;
-              return (
-                (e.title || "").toLowerCase().includes(lower) ||
-                (e.content || "").toLowerCase().includes(lower)
-              );
-            })
-            .sort(
-              (a, b) =>
-                (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt)
+          if (filter !== "ALL")
+            list = list.filter((x) => x.category === filter);
+
+          if (needle) {
+            list = list.filter(
+              (x) =>
+                (x.title || "").toLowerCase().includes(needle) ||
+                (x.content || "").toLowerCase().includes(needle)
             );
-        }, [entries, filter, q]);
-
-        function resetForm() {
-          setCategory("日本語");
-          setTitle("");
-          setContent("");
-          setEditingId(null);
-        }
-
-        function onSubmit(e) {
-          e.preventDefault();
-          const t = title.trim();
-          const c = content.trim();
-          if (!t || !c) return;
-
-          const now = Date.now();
-
-          if (editingId) {
-            setEntries((prev) =>
-              prev.map((it) =>
-                it.id === editingId
-                  ? { ...it, category, title: t, content: c, updatedAt: now }
-                  : it
-              )
-            );
-          } else {
-            setEntries((prev) => [
-              ...prev,
-              {
-                id: uid(),
-                category,
-                title: t,
-                content: c,
-                createdAt: now,
-                updatedAt: now,
-              },
-            ]);
           }
 
-          resetForm();
-          setTimeout(() => titleRef.current?.focus(), 0);
+          list.sort((a, b) => {
+            const da = a.updatedAt || a.createdAt;
+            const db = b.updatedAt || b.createdAt;
+            return sort === "new" ? db - da : da - db;
+          });
+
+          return list;
+        }, [entries, filter, q, sort]);
+
+        function handleSubmit(payload) {
+          const now = Date.now();
+
+          if (editing) {
+            setEntries((prev) =>
+              prev.map((x) =>
+                x.id === editing.id ? { ...x, ...payload, updatedAt: now } : x
+              )
+            );
+            setEditing(null);
+            return;
+          }
+
+          setEntries((prev) => [
+            ...prev,
+            { id: uid(), ...payload, createdAt: now, updatedAt: now },
+          ]);
         }
 
-        function onEdit(item) {
-          setEditingId(item.id);
-          setCategory(item.category);
-          setTitle(item.title);
-          setContent(item.content);
-          setTimeout(() => titleRef.current?.focus(), 0);
+        function handleEdit(item) {
+          setEditing(item);
         }
 
-        function onDelete(id) {
-          setEntries((prev) => prev.filter((it) => it.id !== id));
-          if (editingId === id) resetForm();
+        function handleDelete(id) {
+          if (!confirm("削除しますか？")) return;
+          setEntries((prev) => prev.filter((x) => x.id !== id));
+          if (editing?.id === id) setEditing(null);
+        }
+
+        function handleCancel() {
+          setEditing(null);
         }
 
         return (
-          <div className="mx-auto max-w-3xl px-5 py-10">
-            <header className="mb-8">
-              <h1 className="text-3xl font-bold tracking-tight">
-                JP &amp; Dev Study Log
-              </h1>
-              <nav className="mt-3 flex gap-4 text-sm">
-                <a className="underline underline-offset-4" href="./index.html">
-                  ホーム
-                </a>
-                <a className="underline underline-offset-4" href="./study.html">
-                  学習ログ
-                </a>
-              </nav>
-            </header>
-
-            <main className="space-y-10">
-              <section className="space-y-3">
-                <h2 className="text-xl font-semibold">学習ログ</h2>
-                <p className="leading-7 text-slate-700">
-                  日本語とコーディングの学習記録をまとめています。入力した内容はブラウザの
-                  <code className="mx-1 rounded bg-slate-100 px-1 py-0.5 text-[0.95em]">
-                    localStorage
-                  </code>
-                  に保存されます。
-                </p>
-                <p className="leading-7 text-slate-700">
-                  基本的な CRUD（追加・閲覧・編集・削除） と
-                  フィルター・検索機能をすべて実装しています。
-                </p>
-              </section>
-
-              <section className="space-y-4">
-                <h3 className="text-lg font-semibold">新しいログを追加</h3>
-
-                <form
-                  onSubmit={onSubmit}
-                  className="space-y-4 rounded-xl border border-slate-200 p-4"
-                >
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="block">
-                      <div className="mb-1 text-sm font-medium text-slate-700">
-                        カテゴリ
-                      </div>
-                      <select
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value)}
-                      >
-                        <option value="日本語">日本語</option>
-                        <option value="コーディング">コーディング</option>
-                      </select>
-                    </label>
-
-                    <label className="block">
-                      <div className="mb-1 text-sm font-medium text-slate-700">
-                        タイトル
-                      </div>
-                      <input
-                        ref={titleRef}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        placeholder="例）N2 文法：〜わけではない"
-                      />
-                    </label>
-                  </div>
-
-                  <label className="block">
-                    <div className="mb-1 text-sm font-medium text-slate-700">
-                      内容
-                    </div>
-                    <textarea
-                      className="min-h-[120px] w-full rounded-lg border border-slate-300 px-3 py-2 text-sm leading-6"
-                      value={content}
-                      onChange={(e) => setContent(e.target.value)}
-                      placeholder="学んだこと、エラー原因、気づき、例文など"
-                    />
-                  </label>
-
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="submit"
-                      className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50"
-                    >
-                      {editingId ? "更新する" : "保存する"}
-                    </button>
-
-                    {editingId && (
-                      <button
-                        type="button"
-                        onClick={resetForm}
-                        className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50"
-                      >
-                        キャンセル
-                      </button>
-                    )}
-                  </div>
-                </form>
-              </section>
-
-              <section className="space-y-4">
-                <h3 className="text-lg font-semibold">ログ一覧</h3>
-
-                <div className="flex flex-col gap-3 rounded-xl border border-slate-200 p-4 sm:flex-row sm:items-end">
-                  <label className="block sm:w-56">
-                    <div className="mb-1 text-sm font-medium text-slate-700">
-                      フィルター
-                    </div>
-                    <select
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                      value={filter}
-                      onChange={(e) => setFilter(e.target.value)}
-                    >
-                      <option value="ALL">すべて</option>
-                      <option value="JP">日本語だけ</option>
-                      <option value="DEV">コーディングだけ</option>
-                    </select>
-                  </label>
-
-                  <label className="block flex-1">
-                    <div className="mb-1 text-sm font-medium text-slate-700">
-                      検索
-                    </div>
-                    <input
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                      value={q}
-                      onChange={(e) => setQ(e.target.value)}
-                      placeholder="タイトル / 内容で検索"
-                    />
-                  </label>
-                </div>
-
-                {filtered.length === 0 ? (
-                  <p className="text-sm text-slate-600">
-                    まだログがありません。
-                  </p>
-                ) : (
-                  <ul className="space-y-3">
-                    {filtered.map((it) => (
-                      <li
-                        key={it.id}
-                        className="rounded-xl border border-slate-200 p-4"
-                      >
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div>
-                            <div className="text-xs font-semibold text-slate-500">
-                              {it.category}
-                            </div>
-                            <div className="mt-1 text-base font-semibold">
-                              {it.title}
-                            </div>
-                          </div>
-
-                          <div className="flex gap-2">
-                            <button
-                              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
-                              onClick={() => onEdit(it)}
-                              type="button"
-                            >
-                              編集
-                            </button>
-                            <button
-                              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
-                              onClick={() => onDelete(it.id)}
-                              type="button"
-                            >
-                              削除
-                            </button>
-                          </div>
-                        </div>
-
-                        <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
-                          {it.content}
-                        </p>
-
-                        <div className="mt-3 text-xs text-slate-500">
-                          更新：
-                          {new Date(
-                            it.updatedAt || it.createdAt
-                          ).toLocaleString()}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            </main>
-
-            <footer className="mt-12 border-t pt-6 text-sm text-slate-500">
-              © 2025 JP &amp; Dev Study Log
-            </footer>
+          <div>
+            <Form
+              onSubmit={handleSubmit}
+              editing={editing}
+              onCancel={handleCancel}
+            />
+            <List
+              entries={shown}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              filter={filter}
+              setFilter={setFilter}
+              q={q}
+              setQ={setQ}
+              sort={sort}
+              setSort={setSort}
+            />
           </div>
         );
       }
 
-      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+      ReactDOM.createRoot(document.getElementById("root")).render(<StudyApp />);
     </script>
   </body>
 </html>
