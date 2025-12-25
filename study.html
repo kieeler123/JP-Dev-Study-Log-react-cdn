@@ -81,7 +81,7 @@
       <div class="mt-6 grid gap-4 lg:grid-cols-2">
         <!-- Form -->
         <section
-          class="rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-sm"
+          class="rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-sm min-h-[560px]"
         >
           <h2 class="text-sm font-semibold text-slate-700">新規作成 / 編集</h2>
 
@@ -516,15 +516,16 @@
               onSubmit={(payload) => store.addOrUpdate(payload)}
               onCancel={() => store.cancelEdit()}
             />
-
-            <Recent5
-              entries={recent5}
-              onEdit={(item) => store.edit(item)}
-              onDelete={(id) => {
-                if (!confirm("削除しますか？")) return;
-                store.remove(id);
-              }}
-            />
+            <div className="hidden lg:block">
+              <Recent5
+                entries={recent5}
+                onEdit={(item) => store.edit(item)}
+                onDelete={(id) => {
+                  if (!confirm("削除しますか？")) return;
+                  store.remove(id);
+                }}
+              />
+            </div>
           </div>
         );
       }
